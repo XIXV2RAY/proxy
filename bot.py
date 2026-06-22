@@ -1,9 +1,9 @@
 import os
 from urllib.parse import quote
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
 
-# ===== ENV =====
+# ===== ENV (GitHub Secrets) =====
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
 CHANNEL_ID = os.getenv("CHANNEL_ID")
@@ -38,7 +38,7 @@ def save_index(i):
         f.write(str(i))
 
 
-# ===== GET PROXIES =====
+# ===== GET NEXT PROXIES =====
 def get_next_proxies():
     if not os.path.exists(PROXY_FILE):
         return []
@@ -64,6 +64,7 @@ def get_next_proxies():
 def build_buttons(proxies, text):
     keyboard = []
 
+    # proxy buttons
     for p in proxies:
         try:
             server, port, secret = p.split(":")
@@ -72,21 +73,21 @@ def build_buttons(proxies, text):
         except:
             continue
 
+    # share button
     share_url = f"https://t.me/share/url?text={quote(text)}"
-    keyboard.append([InlineKeyboardButton("📤 ارسال به دیگران", url=share_url)])
+    keyboard.append([InlineKeyboardButton("📤 Share", url=share_url)])
 
     return InlineKeyboardMarkup(keyboard)
 
 
-# ===== RECEIVE FILE =====
-async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ===== RECEIVE FILE FROM ADMIN =====
+async def handle_file(update: ContextTypes.DEFAULT_TYPE, context: ContextTypes.DEFAULT_TYPE):
     if update.message.from_user.id != ADMIN_ID:
         return
 
     if not update.message.document:
         return
 
-    # download file
     file = await context.bot.get_file(update.message.document.file_id)
     await file.download_to_drive(PROXY_FILE)
 
@@ -94,13 +95,13 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_index(0)
 
     # reply to admin
-    await update.message.reply_text("✅ دریافت شد و ذخیره شد")
+    await update.message.reply_text("✅ فایل دریافت شد")
 
-    # immediately post to channel
+    # immediately send to channel
     await send_proxy(context)
 
 
-# ===== SEND POST =====
+# ===== SEND TO CHANNEL =====
 async def send_proxy(context: ContextTypes.DEFAULT_TYPE):
     proxies = get_next_proxies()
     if not proxies:
@@ -108,26 +109,21 @@ async def send_proxy(context: ContextTypes.DEFAULT_TYPE):
 
     text = "🚀 پروکسی جدید:\n\n" + "\n".join(proxies)
 
-    buttons = build_buttons(proxies, text)
-
     await context.bot.send_message(
         chat_id=CHANNEL_ID,
         text=text,
-        reply_markup=buttons
+        reply_markup=build_buttons(proxies, text)
     )
 
 
-# ===== MAIN =====
+# ===== MAIN (NO JOBQUEUE) =====
 async def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # file handler
     app.add_handler(MessageHandler(filters.Document.ALL, handle_file))
 
-    # every 3 hours
-    app.job_queue.run_repeating(send_proxy, interval=10800, first=10)
-
-    await app.run_polling()
+    # فقط run once (برای GitHub Actions)
+    await send_proxy(app)
 
 
 if __name__ == "__main__":
