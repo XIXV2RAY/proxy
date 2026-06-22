@@ -23,3 +23,11 @@ jobs:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
           SUB_URL: ${{ secrets.SUB_URL }}
+
+      - name: Commit logs
+        run: |
+          git config user.name "bot"
+          git config user.email "bot@github.com"
+          git add log.txt index.txt proxies.txt || true
+          git commit -m "update logs" || exit 0
+          git push
