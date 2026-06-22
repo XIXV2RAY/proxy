@@ -106,7 +106,7 @@ def build_buttons(proxies, ad_name=None, ad_link=None):
 
     # CONNECT ROW (افقی)
     row = [
-        InlineKeyboardButton("Connect", url=p)
+        InlineKeyboardButton("Connect 🍓", url=p)
         for p in proxies
     ]
     keyboard.append(row)
@@ -148,7 +148,7 @@ async def run():
 
     await app.bot.send_message(
         chat_id=CHANNEL_ID,
-        text="🚀 پروکسی جدید",
+       text = "🚀 ⌯𝙉𝙚𝙬 𝙋𝙧𝙤𝙭𝙮⌯\n\n𝕗𝕠𝕣 𝕗𝕣𝕖𝕖𝕕𝕠𝕞"
         reply_markup=build_buttons(selected, ad_name, ad_link)
     )
 
