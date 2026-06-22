@@ -146,11 +146,11 @@ async def run():
 
     save_used(used)
 
-    await app.bot.send_message(
-        chat_id=CHANNEL_ID,
-       text = "🚀 ⌯𝙉𝙚𝙬 𝙋𝙧𝙤𝙭𝙮⌯\n\n𝕗𝕠𝕣 𝕗𝕣𝕖𝕖𝕕𝕠𝕞"
-        reply_markup=build_buttons(selected, ad_name, ad_link)
-    )
+   await app.bot.send_message(
+    chat_id=CHANNEL_ID,
+    text="🚀 ⌯𝙉𝙚𝙬 𝙋𝙧𝙤𝙭𝙮⌯\n\n𝕗𝕠𝕣 𝕗𝕣𝕖𝕖𝕕𝕠𝕞",
+    reply_markup=build_buttons(selected, ad_name, ad_link)
+)
 
 
 if __name__ == "__main__":
