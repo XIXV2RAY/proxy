@@ -5,39 +5,56 @@ from urllib.parse import quote
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder
 
+# ===== ENV =====
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
-
-SUB_URL = os.getenv("SUB_URL")  # لینک ساب پروکسی
+SUB_URL = os.getenv("SUB_URL")
 
 PROXY_FILE = "proxies.txt"
 INDEX_FILE = "index.txt"
+LOG_FILE = "log.txt"
+
+
+# ===== LOG =====
+def log(msg):
+    with open(LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(msg + "\n")
 
 
 # ===== LOAD SUB =====
 def load_proxies():
     try:
         r = requests.get(SUB_URL, timeout=10)
-        data = r.text.splitlines()
-        return [x.strip() for x in data if x.strip()]
-    except:
+        data = [x.strip() for x in r.text.splitlines() if x.strip()]
+        log(f"[LOAD] total={len(data)}")
+        return data
+    except Exception as e:
+        log(f"[ERROR LOAD] {e}")
         return []
 
 
-# ===== SAVE =====
-def save_proxies(proxies):
-    with open(PROXY_FILE, "w") as f:
-        f.write("\n".join(proxies))
+# ===== TCP CHECK =====
+def is_alive(proxy):
+    try:
+        ip, port, secret = proxy.split(":")
+        socket.create_connection((ip, int(port)), timeout=2).close()
+        return True
+    except:
+        return False
 
-    with open(INDEX_FILE, "w") as f:
-        f.write("0")
+
+# ===== GET LIVE =====
+def get_live(proxies):
+    live = [p for p in proxies if is_alive(p)]
+    log(f"[LIVE] total={len(live)}")
+    return live
 
 
-# ===== INDEX =====
+# ===== SAVE INDEX =====
 def get_index():
     if not os.path.exists(INDEX_FILE):
         return 0
-    return int(open(INDEX_FILE).read())
+    return int(open(INDEX_FILE).read() or 0)
 
 
 def save_index(i):
@@ -45,41 +62,15 @@ def save_index(i):
         f.write(str(i))
 
 
-# ===== QUICK TEST (TCP) =====
-def is_alive(proxy):
-    try:
-        ip, port, secret = proxy.split(":")
-        s = socket.create_connection((ip, int(port)), timeout=2)
-        s.close()
-        return True
-    except:
-        return False
-
-
-# ===== GET NEXT VALID PROXIES =====
-def get_next_proxies():
-    if not os.path.exists(PROXY_FILE):
-        return []
-
-    with open(PROXY_FILE, "r") as f:
-        proxies = [p.strip() for p in f if p.strip()]
-
-    if not proxies:
-        return []
-
+# ===== PICK 3 =====
+def pick_3(proxies):
     index = get_index()
-
     selected = []
-    checked = 0
 
-    while len(selected) < 3 and checked < len(proxies):
-        p = proxies[(index + checked) % len(proxies)]
-        if is_alive(p):
-            selected.append(p)
-        checked += 1
+    for i in range(3):
+        selected.append(proxies[(index + i) % len(proxies)])
 
-    save_index((index + checked) % len(proxies))
-
+    save_index((index + 3) % len(proxies))
     return selected
 
 
@@ -101,29 +92,34 @@ def build_buttons(proxies, text):
     return InlineKeyboardMarkup(keyboard)
 
 
-# ===== SEND =====
+# ===== MAIN =====
 async def run():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
+    log("=== RUN START ===")
+
     proxies = load_proxies()
-
     if not proxies:
+        log("NO PROXIES")
         return
 
-    save_proxies(proxies)
-
-    live = get_next_proxies()
-
+    live = get_live(proxies)
     if not live:
+        log("NO LIVE PROXIES")
         return
 
-    text = "🚀 پروکسی جدید:\n\n" + "\n".join(live)
+    selected = pick_3(live)
+
+    text = "🚀 پروکسی جدید:\n\n" + "\n".join(selected)
 
     await app.bot.send_message(
         chat_id=CHANNEL_ID,
         text=text,
-        reply_markup=build_buttons(live, text)
+        reply_markup=build_buttons(selected, text)
     )
+
+    log(f"SENT {len(selected)} PROXIES")
+    log("=== RUN END ===\n")
 
 
 if __name__ == "__main__":
