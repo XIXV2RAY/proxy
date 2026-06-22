@@ -1,90 +1,90 @@
 import os
 import requests
-from urllib.parse import quote
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder
 
-# ===== CONFIG =====
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
-
 SUB_URL = os.getenv("SUB_URL")
 
 
-# ===== LOAD PROXIES FROM SUB =====
 def load_proxies():
+    print("SUB_URL =", SUB_URL)
+
     try:
         r = requests.get(SUB_URL, timeout=10)
+        print("HTTP STATUS =", r.status_code)
+
         lines = r.text.splitlines()
+        print("RAW LINES =", len(lines))
 
-        proxies = []
-        for x in lines:
-            x = x.strip()
-            if not x:
-                continue
-            if ":" not in x:
-                continue
-            proxies.append(x)
+        proxies = [x.strip() for x in lines if ":" in x]
 
+        print("VALID PROXIES =", len(proxies))
         return proxies
 
     except Exception as e:
-        print("SUB ERROR:", e)
+        print("ERROR LOAD:", e)
         return []
 
 
-# ===== PICK 3 PROXIES =====
 def pick_three(proxies):
     return proxies[:3]
 
 
-# ===== BUILD INLINE BUTTONS =====
 def build_buttons(proxies):
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
     keyboard = []
 
     for p in proxies:
         try:
-            p = p.strip()
             parts = p.split(":")
-
             if len(parts) < 3:
+                print("SKIP BAD:", p)
                 continue
 
-            ip = parts[0].strip()
-            port = parts[1].strip()
-            secret = ":".join(parts[2:]).strip()
+            ip, port = parts[0], parts[1]
+            secret = ":".join(parts[2:])
 
             url = f"https://t.me/proxy?server={ip}&port={port}&secret={secret}"
 
-            keyboard.append([
-                InlineKeyboardButton("🔗 اتصال پروکسی", url=url)
-            ])
+            keyboard.append([InlineKeyboardButton("🔗 پروکسی", url=url)])
 
-        except:
-            continue
+        except Exception as e:
+            print("BUTTON ERROR:", e)
+
+    print("BUTTONS =", len(keyboard))
 
     return InlineKeyboardMarkup(keyboard)
 
 
-# ===== MAIN =====
 async def run():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     proxies = load_proxies()
 
     if not proxies:
-        print("NO PROXIES FOUND")
+        print("NO PROXIES → EXIT")
         return
 
     selected = pick_three(proxies)
 
-    text = "🚀 پروکسی جدید\n\n" + "\n".join(selected)
+    if not selected:
+        print("NO SELECTED → EXIT")
+        return
 
-    await app.bot.send_message(
-        chat_id=CHANNEL_ID,
-        text=text,
-        reply_markup=build_buttons(selected)
-    )
+    text = "🚀 پروکسی جدید"
+
+    try:
+        await app.bot.send_message(
+            chat_id=CHANNEL_ID,
+            text=text,
+            reply_markup=build_buttons(selected)
+        )
+        print("MESSAGE SENT")
+
+    except Exception as e:
+        print("SEND ERROR:", e)
 
 
 if __name__ == "__main__":
