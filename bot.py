@@ -88,7 +88,7 @@ def pick_three(live):
 # ===== BUTTONS (HORIZONTAL) =====
 def build_buttons(proxies):
     row = [
-        InlineKeyboardButton("Connect", url=p)
+        InlineKeyboardButton("Connect🍓", url=p)
         for p in proxies
     ]
     return InlineKeyboardMarkup([row])
@@ -120,7 +120,7 @@ async def run():
 
     await app.bot.send_message(
         chat_id=CHANNEL_ID,
-        text="🚀 پروکسی جدید",
+        text="🚀 ⌯𝙉𝙚𝙬 𝙋𝙧𝙤𝙭𝙮⌯",
         reply_markup=build_buttons(selected)
     )
 
