@@ -5,16 +5,17 @@ import socket
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder
 
-# ===== ENV =====
+# ================= CONFIG =================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 
 SUB_URL = "https://raw.githubusercontent.com/SoliSpirit/mtproto/refs/heads/master/all_proxies.txt"
 
 USED_FILE = "used_proxies.txt"
+AD_FILE = "ad.txt"
 
 
-# ===== LOAD PROXIES =====
+# ================= LOAD PROXIES =================
 def load_proxies():
     try:
         r = requests.get(SUB_URL, timeout=10)
@@ -23,22 +24,36 @@ def load_proxies():
         return []
 
 
-# ===== USED STORAGE =====
+# ================= USED STORAGE =================
 def load_used():
     try:
-        with open(USED_FILE, "r") as f:
+        with open(USED_FILE, "r", encoding="utf-8") as f:
             return set(x.strip() for x in f)
     except:
         return set()
 
 
 def save_used(used):
-    with open(USED_FILE, "w") as f:
+    with open(USED_FILE, "w", encoding="utf-8") as f:
         for x in used:
             f.write(x + "\n")
 
 
-# ===== LIGHT CHECK =====
+# ================= AD =================
+def load_ad():
+    try:
+        with open(AD_FILE, "r", encoding="utf-8") as f:
+            lines = [x.strip() for x in f.readlines() if x.strip()]
+
+        if len(lines) < 2:
+            return None, None
+
+        return lines[0], lines[1]
+    except:
+        return None, None
+
+
+# ================= CHECK LIVE =================
 def is_alive(url):
     try:
         import re
@@ -52,13 +67,13 @@ def is_alive(url):
         return False
 
 
-# ===== CHUNK 100 =====
+# ================= CHUNK =================
 def chunks(lst, size=100):
     for i in range(0, len(lst), size):
         yield lst[i:i+size]
 
 
-# ===== FIND LIVE IN BATCHES =====
+# ================= FIND LIVE =================
 def find_live(proxies, used):
     for batch in chunks(proxies, 100):
 
@@ -80,26 +95,39 @@ def find_live(proxies, used):
     return []
 
 
-# ===== PICK 3 =====
+# ================= PICK 3 =================
 def pick_three(live):
     return live[:3]
 
 
-# ===== BUTTONS (HORIZONTAL) =====
-def build_buttons(proxies):
+# ================= BUTTONS =================
+def build_buttons(proxies, ad_name=None, ad_link=None):
+    keyboard = []
+
+    # CONNECT ROW (افقی)
     row = [
-        InlineKeyboardButton("Connect🍓", url=p)
+        InlineKeyboardButton("Connect", url=p)
         for p in proxies
     ]
-    return InlineKeyboardMarkup([row])
+    keyboard.append(row)
+
+    # AD BUTTON
+    if ad_name and ad_link:
+        keyboard.append([
+            InlineKeyboardButton(ad_name, url=ad_link)
+        ])
+
+    return InlineKeyboardMarkup(keyboard)
 
 
-# ===== MAIN =====
+# ================= MAIN =================
 async def run():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     all_proxies = load_proxies()
     used = load_used()
+
+    ad_name, ad_link = load_ad()
 
     if not all_proxies:
         return
@@ -107,7 +135,7 @@ async def run():
     live = find_live(all_proxies, used)
 
     if not live:
-        print("NO LIVE PROXIES FOUND")
+        print("NO LIVE PROXIES")
         return
 
     selected = pick_three(live)
@@ -120,8 +148,8 @@ async def run():
 
     await app.bot.send_message(
         chat_id=CHANNEL_ID,
-        text="🚀 ⌯𝙉𝙚𝙬 𝙋𝙧𝙤𝙭𝙮⌯",
-        reply_markup=build_buttons(selected)
+        text="🚀 پروکسی جدید",
+        reply_markup=build_buttons(selected, ad_name, ad_link)
     )
 
 
