@@ -21,46 +21,57 @@ def load_proxies():
         return []
 
 
-# ===== QUICK TEST =====
+# ===== TEST PROXY (FAST) =====
 def is_alive(url):
     try:
-        # استخراج server و port از لینک
         import re
 
         server = re.search(r"server=([^&]+)", url).group(1)
         port = int(re.search(r"port=([^&]+)", url).group(1))
 
-        socket.create_connection((server, port), timeout=2).close()
+        socket.create_connection((server, port), timeout=1).close()
         return True
     except:
         return False
 
 
-# ===== FILTER LIVE =====
-def get_live(proxies):
-    live = []
-    for p in proxies:
-        if is_alive(p):
-            live.append(p)
-    return live
+# ===== CHUNK 100 =====
+def chunk_list(lst, size=100):
+    for i in range(0, len(lst), size):
+        yield lst[i:i + size]
 
 
-# ===== PICK 3 =====
-def pick_three(proxies):
-    return proxies[:3]
+# ===== PICK BEST 3 =====
+def pick_best(live):
+    return live[:3]
 
 
-# ===== HORIZONTAL BUTTONS =====
+# ===== BUTTONS (ALL CONNECT) =====
 def build_buttons(proxies):
     keyboard = []
 
     row = []
-    for i, url in enumerate(proxies):
-        row.append(InlineKeyboardButton(f"🔗 {i+1}", url=url))
+    for url in proxies:
+        row.append(InlineKeyboardButton("Connect", url=url))
 
-    keyboard.append(row)  # همه تو یک ردیف
+    keyboard.append(row)  # افقی
 
     return InlineKeyboardMarkup(keyboard)
+
+
+# ===== FIND LIVE PROXIES =====
+def find_live(proxies):
+    for chunk in chunk_list(proxies, 100):
+
+        live = []
+        for p in chunk:
+            if is_alive(p):
+                live.append(p)
+
+        if live:
+            return live  # همون batch اول که جواب بده
+
+    return []
 
 
 # ===== MAIN =====
@@ -72,12 +83,13 @@ async def run():
     if not proxies:
         return
 
-    live = get_live(proxies)
+    live = find_live(proxies)
 
     if not live:
+        print("NO LIVE PROXIES FOUND")
         return
 
-    selected = pick_three(live)
+    selected = pick_best(live)
 
     await app.bot.send_message(
         chat_id=CHANNEL_ID,
