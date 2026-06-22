@@ -9,7 +9,7 @@ from telegram.ext import ApplicationBuilder
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 
-SUB_URL = "https://raw.githubusercontent.com/SoliSpirit/mtproto/refs/heads/master/all_proxies.txt"
+SUB_URL = "https://raw.githubusercontent.com/XIXV2RAY/XIXproxy/refs/heads/main/PROXY.txt"
 
 USED_FILE = "used_proxies.txt"
 AD_FILE = "ad.txt"
