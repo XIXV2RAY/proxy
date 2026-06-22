@@ -1,6 +1,7 @@
 import os
 import asyncio
 import requests
+import socket
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder
 
@@ -8,22 +9,40 @@ from telegram.ext import ApplicationBuilder
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 
-# ===== SUB URL =====
 SUB_URL = "https://raw.githubusercontent.com/SoliSpirit/mtproto/refs/heads/master/all_proxies.txt"
 
 
-# ===== LOAD PROXIES =====
+# ===== LOAD =====
 def load_proxies():
     try:
         r = requests.get(SUB_URL, timeout=10)
-        lines = r.text.splitlines()
-
-        # فقط لینک‌های کامل proxy
-        return [x.strip() for x in lines if "t.me/proxy" in x]
-
-    except Exception as e:
-        print("SUB ERROR:", e)
+        return [x.strip() for x in r.text.splitlines() if "t.me/proxy" in x]
+    except:
         return []
+
+
+# ===== QUICK TEST =====
+def is_alive(url):
+    try:
+        # استخراج server و port از لینک
+        import re
+
+        server = re.search(r"server=([^&]+)", url).group(1)
+        port = int(re.search(r"port=([^&]+)", url).group(1))
+
+        socket.create_connection((server, port), timeout=2).close()
+        return True
+    except:
+        return False
+
+
+# ===== FILTER LIVE =====
+def get_live(proxies):
+    live = []
+    for p in proxies:
+        if is_alive(p):
+            live.append(p)
+    return live
 
 
 # ===== PICK 3 =====
@@ -31,14 +50,15 @@ def pick_three(proxies):
     return proxies[:3]
 
 
-# ===== BUILD BUTTONS =====
+# ===== HORIZONTAL BUTTONS =====
 def build_buttons(proxies):
     keyboard = []
 
-    for url in proxies:
-        keyboard.append([
-            InlineKeyboardButton("🔗 اتصال پروکسی", url=url)
-        ])
+    row = []
+    for i, url in enumerate(proxies):
+        row.append(InlineKeyboardButton(f"🔗 {i+1}", url=url))
+
+    keyboard.append(row)  # همه تو یک ردیف
 
     return InlineKeyboardMarkup(keyboard)
 
@@ -50,10 +70,14 @@ async def run():
     proxies = load_proxies()
 
     if not proxies:
-        print("NO PROXIES")
         return
 
-    selected = pick_three(proxies)
+    live = get_live(proxies)
+
+    if not live:
+        return
+
+    selected = pick_three(live)
 
     await app.bot.send_message(
         chat_id=CHANNEL_ID,
