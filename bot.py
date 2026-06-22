@@ -1,25 +1,33 @@
 import os
+import requests
+import socket
 from urllib.parse import quote
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
+from telegram.ext import ApplicationBuilder
 
-# ===== ENV (GitHub Secrets) =====
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = int(os.getenv("ADMIN_ID"))
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 
-# ===== FILES =====
+SUB_URL = os.getenv("SUB_URL")  # لینک ساب پروکسی
+
 PROXY_FILE = "proxies.txt"
 INDEX_FILE = "index.txt"
 
 
-# ===== SAVE PROXIES =====
+# ===== LOAD SUB =====
+def load_proxies():
+    try:
+        r = requests.get(SUB_URL, timeout=10)
+        data = r.text.splitlines()
+        return [x.strip() for x in data if x.strip()]
+    except:
+        return []
+
+
+# ===== SAVE =====
 def save_proxies(proxies):
     with open(PROXY_FILE, "w") as f:
-        for p in proxies:
-            p = p.strip()
-            if p:
-                f.write(p + "\n")
+        f.write("\n".join(proxies))
 
     with open(INDEX_FILE, "w") as f:
         f.write("0")
@@ -29,8 +37,7 @@ def save_proxies(proxies):
 def get_index():
     if not os.path.exists(INDEX_FILE):
         return 0
-    with open(INDEX_FILE, "r") as f:
-        return int(f.read())
+    return int(open(INDEX_FILE).read())
 
 
 def save_index(i):
@@ -38,7 +45,18 @@ def save_index(i):
         f.write(str(i))
 
 
-# ===== GET NEXT PROXIES =====
+# ===== QUICK TEST (TCP) =====
+def is_alive(proxy):
+    try:
+        ip, port, secret = proxy.split(":")
+        s = socket.create_connection((ip, int(port)), timeout=2)
+        s.close()
+        return True
+    except:
+        return False
+
+
+# ===== GET NEXT VALID PROXIES =====
 def get_next_proxies():
     if not os.path.exists(PROXY_FILE):
         return []
@@ -52,10 +70,15 @@ def get_next_proxies():
     index = get_index()
 
     selected = []
-    for i in range(3):
-        selected.append(proxies[(index + i) % len(proxies)])
+    checked = 0
 
-    save_index((index + 3) % len(proxies))
+    while len(selected) < 3 and checked < len(proxies):
+        p = proxies[(index + checked) % len(proxies)]
+        if is_alive(p):
+            selected.append(p)
+        checked += 1
+
+    save_index((index + checked) % len(proxies))
 
     return selected
 
@@ -64,68 +87,45 @@ def get_next_proxies():
 def build_buttons(proxies, text):
     keyboard = []
 
-    # proxy buttons
     for p in proxies:
         try:
-            server, port, secret = p.split(":")
-            url = f"https://t.me/proxy?server={server}&port={port}&secret={secret}"
+            ip, port, secret = p.split(":")
+            url = f"https://t.me/proxy?server={ip}&port={port}&secret={secret}"
             keyboard.append([InlineKeyboardButton("🔗 اتصال", url=url)])
         except:
             continue
 
-    # share button
     share_url = f"https://t.me/share/url?text={quote(text)}"
     keyboard.append([InlineKeyboardButton("📤 Share", url=share_url)])
 
     return InlineKeyboardMarkup(keyboard)
 
 
-# ===== RECEIVE FILE FROM ADMIN =====
-async def handle_file(update: ContextTypes.DEFAULT_TYPE, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.from_user.id != ADMIN_ID:
-        return
+# ===== SEND =====
+async def run():
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    if not update.message.document:
-        return
+    proxies = load_proxies()
 
-    file = await context.bot.get_file(update.message.document.file_id)
-    await file.download_to_drive(PROXY_FILE)
-
-    # reset index
-    save_index(0)
-
-    # reply to admin
-    await update.message.reply_text("✅ فایل دریافت شد")
-
-    # immediately send to channel
-    await send_proxy(context)
-
-
-# ===== SEND TO CHANNEL =====
-async def send_proxy(context: ContextTypes.DEFAULT_TYPE):
-    proxies = get_next_proxies()
     if not proxies:
         return
 
-    text = "🚀 پروکسی جدید:\n\n" + "\n".join(proxies)
+    save_proxies(proxies)
 
-    await context.bot.send_message(
+    live = get_next_proxies()
+
+    if not live:
+        return
+
+    text = "🚀 پروکسی جدید:\n\n" + "\n".join(live)
+
+    await app.bot.send_message(
         chat_id=CHANNEL_ID,
         text=text,
-        reply_markup=build_buttons(proxies, text)
+        reply_markup=build_buttons(live, text)
     )
-
-
-# ===== MAIN (NO JOBQUEUE) =====
-async def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-    app.add_handler(MessageHandler(filters.Document.ALL, handle_file))
-
-    # فقط run once (برای GitHub Actions)
-    await send_proxy(app)
 
 
 if __name__ == "__main__":
     import asyncio
-    asyncio.run(main())
+    asyncio.run(run())
