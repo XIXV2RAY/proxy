@@ -5,7 +5,7 @@ import socket
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder
 
-# ===== SECRETS =====
+# ===== ENV =====
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 
@@ -14,7 +14,7 @@ SUB_URL = "https://raw.githubusercontent.com/SoliSpirit/mtproto/refs/heads/maste
 USED_FILE = "used_proxies.txt"
 
 
-# ===== LOAD ALL =====
+# ===== LOAD PROXIES =====
 def load_proxies():
     try:
         r = requests.get(SUB_URL, timeout=10)
@@ -23,23 +23,22 @@ def load_proxies():
         return []
 
 
-# ===== LOAD USED =====
+# ===== USED STORAGE =====
 def load_used():
-    if not os.path.exists(USED_FILE):
+    try:
+        with open(USED_FILE, "r") as f:
+            return set(x.strip() for x in f)
+    except:
         return set()
 
-    with open(USED_FILE, "r", encoding="utf-8") as f:
-        return set(x.strip() for x in f if x.strip())
 
-
-# ===== SAVE USED =====
 def save_used(used):
-    with open(USED_FILE, "w", encoding="utf-8") as f:
+    with open(USED_FILE, "w") as f:
         for x in used:
             f.write(x + "\n")
 
 
-# ===== CHECK LIVE =====
+# ===== LIGHT CHECK =====
 def is_alive(url):
     try:
         import re
@@ -53,26 +52,32 @@ def is_alive(url):
         return False
 
 
-# ===== FIND NEW PROXIES =====
-def get_new_proxies(all_proxies, used):
-    return [p for p in all_proxies if p not in used]
+# ===== CHUNK 100 =====
+def chunks(lst, size=100):
+    for i in range(0, len(lst), size):
+        yield lst[i:i+size]
 
 
-# ===== PICK LIVE =====
+# ===== FIND LIVE IN BATCHES =====
 def find_live(proxies, used):
-    live = []
+    for batch in chunks(proxies, 100):
 
-    for p in proxies:
-        if p in used:
-            continue
+        live = []
 
-        if is_alive(p):
-            live.append(p)
+        for p in batch:
+            if p in used:
+                continue
 
-        if len(live) >= 10:  # برای سرعت
-            break
+            if is_alive(p):
+                live.append(p)
 
-    return live
+            if len(live) >= 10:
+                break
+
+        if live:
+            return live
+
+    return []
 
 
 # ===== PICK 3 =====
@@ -82,15 +87,11 @@ def pick_three(live):
 
 # ===== BUTTONS (HORIZONTAL) =====
 def build_buttons(proxies):
-    keyboard = []
-
-    row = []
-    for url in proxies:
-        row.append(InlineKeyboardButton("Connect", url=url))
-
-    keyboard.append(row)
-
-    return InlineKeyboardMarkup(keyboard)
+    row = [
+        InlineKeyboardButton("Connect", url=p)
+        for p in proxies
+    ]
+    return InlineKeyboardMarkup([row])
 
 
 # ===== MAIN =====
@@ -103,17 +104,15 @@ async def run():
     if not all_proxies:
         return
 
-    new_proxies = get_new_proxies(all_proxies, used)
-
-    live = find_live(new_proxies, used)
+    live = find_live(all_proxies, used)
 
     if not live:
-        print("NO NEW LIVE PROXIES")
+        print("NO LIVE PROXIES FOUND")
         return
 
     selected = pick_three(live)
 
-    # mark as used
+    # mark used
     for p in selected:
         used.add(p)
 
