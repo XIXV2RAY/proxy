@@ -22,3 +22,12 @@ jobs:
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+
+      # ذخیره non-repeat واقعی
+      - name: Save used proxies
+        run: |
+          git config user.name "bot"
+          git config user.email "bot@github.com"
+          git add used_proxies.txt
+          git commit -m "update used proxies" || echo "no changes"
+          git push
