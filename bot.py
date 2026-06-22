@@ -11,8 +11,10 @@ CHANNEL_ID = os.getenv("CHANNEL_ID")
 
 SUB_URL = "https://raw.githubusercontent.com/SoliSpirit/mtproto/refs/heads/master/all_proxies.txt"
 
+USED_FILE = "used_proxies.txt"
 
-# ===== LOAD =====
+
+# ===== LOAD ALL =====
 def load_proxies():
     try:
         r = requests.get(SUB_URL, timeout=10)
@@ -21,7 +23,23 @@ def load_proxies():
         return []
 
 
-# ===== TEST PROXY (FAST) =====
+# ===== LOAD USED =====
+def load_used():
+    if not os.path.exists(USED_FILE):
+        return set()
+
+    with open(USED_FILE, "r", encoding="utf-8") as f:
+        return set(x.strip() for x in f if x.strip())
+
+
+# ===== SAVE USED =====
+def save_used(used):
+    with open(USED_FILE, "w", encoding="utf-8") as f:
+        for x in used:
+            f.write(x + "\n")
+
+
+# ===== CHECK LIVE =====
 def is_alive(url):
     try:
         import re
@@ -35,18 +53,34 @@ def is_alive(url):
         return False
 
 
-# ===== CHUNK 100 =====
-def chunk_list(lst, size=100):
-    for i in range(0, len(lst), size):
-        yield lst[i:i + size]
+# ===== FIND NEW PROXIES =====
+def get_new_proxies(all_proxies, used):
+    return [p for p in all_proxies if p not in used]
 
 
-# ===== PICK BEST 3 =====
-def pick_best(live):
+# ===== PICK LIVE =====
+def find_live(proxies, used):
+    live = []
+
+    for p in proxies:
+        if p in used:
+            continue
+
+        if is_alive(p):
+            live.append(p)
+
+        if len(live) >= 10:  # برای سرعت
+            break
+
+    return live
+
+
+# ===== PICK 3 =====
+def pick_three(live):
     return live[:3]
 
 
-# ===== BUTTONS (ALL CONNECT) =====
+# ===== BUTTONS (HORIZONTAL) =====
 def build_buttons(proxies):
     keyboard = []
 
@@ -54,42 +88,36 @@ def build_buttons(proxies):
     for url in proxies:
         row.append(InlineKeyboardButton("Connect", url=url))
 
-    keyboard.append(row)  # افقی
+    keyboard.append(row)
 
     return InlineKeyboardMarkup(keyboard)
-
-
-# ===== FIND LIVE PROXIES =====
-def find_live(proxies):
-    for chunk in chunk_list(proxies, 100):
-
-        live = []
-        for p in chunk:
-            if is_alive(p):
-                live.append(p)
-
-        if live:
-            return live  # همون batch اول که جواب بده
-
-    return []
 
 
 # ===== MAIN =====
 async def run():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    proxies = load_proxies()
+    all_proxies = load_proxies()
+    used = load_used()
 
-    if not proxies:
+    if not all_proxies:
         return
 
-    live = find_live(proxies)
+    new_proxies = get_new_proxies(all_proxies, used)
+
+    live = find_live(new_proxies, used)
 
     if not live:
-        print("NO LIVE PROXIES FOUND")
+        print("NO NEW LIVE PROXIES")
         return
 
-    selected = pick_best(live)
+    selected = pick_three(live)
+
+    # mark as used
+    for p in selected:
+        used.add(p)
+
+    save_used(used)
 
     await app.bot.send_message(
         chat_id=CHANNEL_ID,
