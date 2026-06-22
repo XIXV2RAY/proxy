@@ -148,7 +148,7 @@ async def run():
 
     await app.bot.send_message(
     chat_id=CHANNEL_ID,
-    text="🚀 ⌯𝙉𝙚𝙬 𝙋𝙧𝙤𝙭𝙮⌯\n\n𝕗𝕠𝕣 𝕗𝕣𝕖𝕖𝕕𝕠𝕞",
+    text="🚀 ⌯𝙉𝙚𝙬 𝙋𝙧𝙤𝙭𝙮⌯\n\n𝐟𝐨𝐫 𝐟𝐫𝐞𝐞𝐝𝐨𝐦",
     reply_markup=build_buttons(selected, ad_name, ad_link)
 )
 
