@@ -8,13 +8,29 @@ from telegram.ext import ApplicationBuilder
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 
-PROXY_URL = "https://raw.githubusercontent.com/SoliSpirit/mtproto/refs/heads/master/all_proxies.txt"
+SUB_URL = os.getenv("SUB_URL")
 
 
-# ===== LOAD PROXIES =====
+# ===== LOAD PROXIES FROM SUB =====
 def load_proxies():
-    r = requests.get(PROXY_URL, timeout=10)
-    return [x.strip() for x in r.text.splitlines() if x.strip()]
+    try:
+        r = requests.get(SUB_URL, timeout=10)
+        lines = r.text.splitlines()
+
+        proxies = []
+        for x in lines:
+            x = x.strip()
+            if not x:
+                continue
+            if ":" not in x:
+                continue
+            proxies.append(x)
+
+        return proxies
+
+    except Exception as e:
+        print("SUB ERROR:", e)
+        return []
 
 
 # ===== PICK 3 PROXIES =====
@@ -23,48 +39,51 @@ def pick_three(proxies):
 
 
 # ===== BUILD INLINE BUTTONS =====
-def build_buttons(proxies, text):
+def build_buttons(proxies):
     keyboard = []
 
-    # هر پروکسی = یک دکمه شیشه‌ای
     for p in proxies:
         try:
-            ip, port, secret = p.split(":")
+            p = p.strip()
+            parts = p.split(":")
+
+            if len(parts) < 3:
+                continue
+
+            ip = parts[0].strip()
+            port = parts[1].strip()
+            secret = ":".join(parts[2:]).strip()
+
             url = f"https://t.me/proxy?server={ip}&port={port}&secret={secret}"
+
             keyboard.append([
                 InlineKeyboardButton("🔗 اتصال پروکسی", url=url)
             ])
+
         except:
             continue
-
-    # دکمه Share واقعی
-    share_url = f"https://t.me/share/url?text={quote(text)}"
-    keyboard.append([
-        InlineKeyboardButton("📤 Share", url=share_url)
-    ])
 
     return InlineKeyboardMarkup(keyboard)
 
 
-# ===== MAIN RUN =====
+# ===== MAIN =====
 async def run():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     proxies = load_proxies()
 
     if not proxies:
+        print("NO PROXIES FOUND")
         return
 
     selected = pick_three(proxies)
 
-    # متن پیام
-    text = "🚀 پروکسی جدید"
+    text = "🚀 پروکسی جدید\n\n" + "\n".join(selected)
 
-    # ارسال پیام با دکمه‌ها
     await app.bot.send_message(
         chat_id=CHANNEL_ID,
         text=text,
-        reply_markup=build_buttons(selected, text)
+        reply_markup=build_buttons(selected)
     )
 
 
